@@ -1,0 +1,9 @@
+--- 
+applications: 
+- memory: 512M
+  path: .
+  runtime: node08
+  framework: node
+  url: jmontoya.${target-base}
+  instances: 1
+  name: jmontoya

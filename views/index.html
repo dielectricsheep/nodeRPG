@@ -1,0 +1,61 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="styles/main.css">
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="lib/RPGObject.js"></script>
+  <script>
+
+    var divRpgWindowWrapper;
+
+    function onloadBody() {
+      //Create div to pass to the RpgModule
+      divRpgWindowWrapper = document.getElementById('rpg_window_wrapper'); 
+      
+      RpgModule.init(divRpgWindowWrapper, io, '"http://' + '{{hostUrl}}' + '"');
+
+      //Bind key events to RpgModule
+      window.onkeydown = function(event){
+        switch(event.keyCode){
+          case 38:
+            RpgModule.setKeyPress('up');
+          break;
+          case 39:
+            RpgModule.setKeyPress('right');
+          break;
+          case 40:
+            RpgModule.setKeyPress('down');
+          break;
+          case 37:
+            RpgModule.setKeyPress('left');
+          break;
+        };
+      };
+      window.onkeyup = function(event){
+        switch(event.keyCode){
+          case 38:
+            RpgModule.setKeyPress(null);
+          break;
+          case 39:
+            RpgModule.setKeyPress(null);
+          break;
+          case 40:
+            RpgModule.setKeyPress(null);
+          break;
+          case 37:
+            RpgModule.setKeyPress(null);
+          break;
+        };
+      };
+    };
+</script>
+<title>dielectricsheep Javascript RPG Engine Demo</title>
+</head>
+
+<body onload="onloadBody()">
+  <center>
+    <a href="http://dielectricsheep.com"><img src=http://dielectricsheep.com/images/dielectricsheep_title_banner_long.png /></a>
+    <h2>HTML5/Javascript RPG Engine Demo</h2>
+  </center>
+  <div id="rpg_window_wrapper" />
+</body>
+</html>

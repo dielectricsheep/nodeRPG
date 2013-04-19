@@ -1,0 +1,17 @@
+@font-face {
+	font-family: 'RpgFont';
+	src: url('../fonts/visitor1.ttf') format('truetype');
+	font-style: regular;
+}
+
+body {
+	background-color: #434687;
+	color: white;
+}
+
+#rpg_window_wrapper {
+	position: relative;
+	width: 736px ;
+	margin-left: auto ;
+	margin-right: auto ; 
+}
