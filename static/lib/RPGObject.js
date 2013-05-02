@@ -70,7 +70,8 @@ var RpgModule =  (function () {
     */
 
     submitButton.onclick = function(){
-        var out = {"username" : usernameInput.value , "password" : passwordInput.value};
+        var out = {"username" : "player" , "password" : passwordInput.value};
+        //var out = {"username" : usernameInput.value , "password" : passwordInput.value};
         socket.emit('login', out);      
     }
     submitButton.disabled = '';
@@ -126,8 +127,8 @@ var RpgModule =  (function () {
       });
 
       socket.on('handshake', function(inData){
-        playerData = inData;
-        rpgObject.init(playerData, playerData.login.rpgObject, divWindow, objects, function(){
+        playerData = inData.playerData;
+        rpgObject.init(inData.playerData, inData.rpgObject, divWindow, objects, function(){
           createLoginForm();  
         });
       });
@@ -139,13 +140,14 @@ var RpgModule =  (function () {
         rpgObject = new RpgObject;
         objects = {};
         playerData = inData.playerData;
+        playerData.view.rpgObjectId = inData.rpgData._id;
         rpgObject.init(playerData, inData.rpgData, divWindow, objects, function(){
           var timer = 0;
           //RPG Clock, at approx 16 times a sec TODO: describe what this does  
           setInterval(function(){
             timer++;
             if(rpgKeyPress){
-              if(objects.player.move({"direction":rpgKeyPress})){
+              if(objects[playerData.rpgObjectId].move({"direction":rpgKeyPress})){
                 socket.emit("move", {"direction":rpgKeyPress});
               }
             };
@@ -159,7 +161,7 @@ var RpgModule =  (function () {
       });
 
       socket.on('move', function(inData){
-        objects[playerData.view.id].UpdateEdgeBuffer(inData);
+        objects[playerData.view.rpgObjectId].updateEdgeBuffer(inData);
       });
 
     },
@@ -173,14 +175,14 @@ var RpgModule =  (function () {
 //Universal RpgObject Class, used for any tilebased entity or map
 var RpgObject = function(){
 
-  //Select is the portion of the tileMap that displays on the screen
+  //Select is the portion of the this.tileMap that displays on the screen
   //is a rectangle defined by orig and bound points.
   this.canvasSelect = {};
   this.canvasSelect.orig = {};
   this.canvasSelect.bound = {};
   this.rpgParentNode = {};
 
-  this.animations = {};
+  this.animations = [];
 };
 
 RpgObject.prototype.playerData = {};
@@ -196,7 +198,7 @@ RpgObject.prototype.init = function(playerData, objData, divWindow, objects, cal
     this[key] = objData[key];
   };
 
-  if(this.id == playerData.id){
+  if(this._id == playerData.rpgObjectId){
    //Methods and properties for a non map-type object (currently only for player)
     if(playerData.walkSpeed >= 0 && playerData.walkSpeed <= playerData.view.tileWidth / 2){
       this.walkSpeed = playerData.walkSpeed * 2;
@@ -207,13 +209,13 @@ RpgObject.prototype.init = function(playerData, objData, divWindow, objects, cal
     //Setup player canvas that will overlay on the Map Canvas
     this.canvasSelect.orig.x = 0;
     this.canvasSelect.orig.y = 0;
-    this.canvasSelect.bound.x = this.tileMapWidth - 1;
-    this.canvasSelect.bound.y = this.tileMapHeight - 1;
+    this.canvasSelect.bound.x = this.tileMap[this.state][0].length;
+    this.canvasSelect.bound.y = this.tileMap[this.state].length;
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'view_' + objData.id;
     this.canvas.style.zIndex = 1;
-    this.canvas.width = this.tileWidth * this.tileMapWidth * playerData.view.scale;
-    this.canvas.height = this.tileHeight * this.tileMapHeight * playerData.view.scale;
+    this.canvas.width = this.tileMap[this.state][0].length * this.tileWidth * playerData.view.scale;
+    this.canvas.height = this.tileMap[this.state].length * this.tileHeight * playerData.view.scale;
     this.canvas.style.position = 'absolute';
     this.canvasPosition = {};
     this.canvasPosition.x = ((parseInt(playerData.view.width / 2) * playerData.view.tileWidth) + parseInt(self.tileWidth / 2)) * playerData.view.scale + playerData.view.posLeft;
@@ -229,19 +231,14 @@ RpgObject.prototype.init = function(playerData, objData, divWindow, objects, cal
     this.inside = {};
     playerData.view.scale = playerData.view.scale;
 
-    this.canvasSelect.width = playerData.view.width;
-    this.canvasSelect.height = playerData.view.height;
-
     //Set sublocation, the pixel position within a tile location
     this.sublocation = {};
     this.sublocation.x = this.tileWidth / 2;
     this.sublocation.y = this.tileHeight / 2;
       
     //Center Selection on spawn point
-    this.canvasSelect.orig.x = playerData.location.x - parseInt(this.canvasSelect.width / 2);
-    this.canvasSelect.orig.y = playerData.location.y - parseInt(this.canvasSelect.height / 2);
-    this.canvasSelect.bound.x = this.canvasSelect.orig.x + this.canvasSelect.width - 1;
-    this.canvasSelect.bound.y = this.canvasSelect.orig.y + this.canvasSelect.height - 1;
+    this.canvasSelect = playerData.canvasSelect;
+    this.mapSelect = playerData.mapSelect;
 
     //Create Map Work Canvas
     this.canvas = document.createElement('canvas');
@@ -284,13 +281,13 @@ RpgObject.prototype.init = function(playerData, objData, divWindow, objects, cal
     //Setup player canvas that will overlay on the Map Canvas
     this.canvasSelect.orig.x = 0;
     this.canvasSelect.orig.y = 0;
-    this.canvasSelect.bound.x = this.tileMapWidth - 1;
-    this.canvasSelect.bound.y = this.tileMapHeight - 1;
+    this.canvasSelect.bound.x = this.tileMap[this.state][0].length;
+    this.canvasSelect.bound.y = this.tileMap[this.state].length;
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'view_' + objData.id;
     this.canvas.style.zIndex = 1;
-    this.canvas.width = this.tileWidth * this.tileMapWidth * playerData.view.scale;
-    this.canvas.height = this.tileHeight * this.tileMapHeight * playerData.view.scale;
+    this.canvas.width = this.tileWidth * this.tileMap[this.state][0].length * playerData.view.scale;
+    this.canvas.height = this.tileHeight * this.tileMap[this.state].length * playerData.view.scale;
     this.canvas.style.position = 'absolute';
 
     this.canvasPosition = {};
@@ -307,15 +304,15 @@ RpgObject.prototype.init = function(playerData, objData, divWindow, objects, cal
 
   this.loadTileDictionary(function(){
 
-    // animations from tileMap
-    for(var key in self.states){
-      self.animations[key] = [];
-      for(var selectY = 0; selectY < self.tileMapHeight; selectY++){
-        for(var selectX = 0; selectX < self.tileMapWidth; selectX++){
-          if(self.states[key].tileMap[selectY] && self.states[key].tileMap[selectY][selectX]){
-            var tile = self.tileDictionary[self.states[key].tileMap[selectY][selectX]];
+    // animations from this.tileMap
+    for(var i = 0; i < self.tileMap.length; i++){
+      self.animations[i] = [];
+      for(var selectY = 0; selectY < self.tileMap[self.state].length; selectY++){
+        for(var selectX = 0; selectX < self.tileMap[self.state][0].length; selectX++){
+          if(self.tileMap[i][selectY] && self.tileMap[i][selectY][selectX]){
+            var tile = self.tileDictionary[self.tileMap[i][selectY][selectX]];
             if(tile.animation){
-              self.animations[key].push({'x' : selectX, 'y' : selectY});
+              self.animations[i].push({'x' : selectX, 'y' : selectY});
             }        
           }
         }
@@ -323,7 +320,7 @@ RpgObject.prototype.init = function(playerData, objData, divWindow, objects, cal
     }
 
     //Recursively iterates through an object/container tree and creates rpgObjects from objectData
-    objects[self.id] = self;
+    objects[self._id] = self;
     for(var key in self.rpgChildNodes){
       var childObj = new RpgObject;
       childObj.init(playerData, self.rpgChildNodes[key], divWindow, objects);
@@ -350,16 +347,16 @@ params : {
 }
 */
 RpgObject.prototype.objectPush = function(params){
-  if(params.rpgObject.location.id === this.id  && params.rpgObject.location.side === this.side){
+  if(params.rpgObject.location.containerId === this._id  && params.rpgObject.location.side === this.side){
       //TODO  Check if object exists, check for changes from prior object 
-      this.rpgChildNodes[params.rpgObject.id] = params.rpgObject;
+      this.rpgChildNodes[params.rpgObject._id] = params.rpgObject;
   }
 };
 
 //Move RPG object
 //TODO: Add logic to move objects other than player
 RpgObject.prototype.move = function(params){
-  if(this.playerData.id === this.id){
+  if(this.playerData.rpgObjectId === this._id){
     this.changeState(params.direction);
     var result = this.rpgParentNode.viewScroll({
       "direction" : params.direction,
@@ -380,7 +377,7 @@ RpgObject.prototype.move = function(params){
 //Method to check if a point or rectangle is within bounds of an object
 RpgObject.prototype.checkInBounds = function(x, y, xBound, yBound){
   var result = true;
-  if(!(this.states[this.state].tileMap[this.canvasSelect.orig.y] && this.states[this.state].tileMap[this.canvasSelect.orig.y][this.canvasSelect.orig.x + x])){
+  if(!(this.tileMap[this.state][this.canvasSelect.orig.y] && this.tileMap[this.state][this.canvasSelect.orig.y][this.canvasSelect.orig.x + x])){
     return false;
   }
   return true;
@@ -408,7 +405,7 @@ RpgObject.prototype.displayDicEntry = function(entry, x, y, subX, subY){
 
 //Display method, this displays an entire object for whatever 'state' is specified
 RpgObject.prototype.display = function(state){
-  var displayState = this.states[state].tileMap;
+  var displayState = this.tileMap[state];
 
   //draw overlay for mainview
   if(this.overlay){
@@ -417,15 +414,11 @@ RpgObject.prototype.display = function(state){
 
   //iterate through and draw tiles from tile map
   var y = 0;
-  for(var selectY = this.canvasSelect.orig.y; selectY <= this.canvasSelect.bound.y; selectY++){
+  for(var selectY = this.canvasSelect.orig.y; selectY < this.canvasSelect.bound.y; selectY++){
     var x = 0;
-    for(var selectX = this.canvasSelect.orig.x; selectX <= this.canvasSelect.bound.x; selectX++){
+    for(var selectX = this.canvasSelect.orig.x; selectX < this.canvasSelect.bound.x; selectX++){
       if(this.inside){
-        if(this.checkInBounds(selectX, selectY) && displayState[selectY] && displayState[selectY][selectX]){
-          this.displayDicEntry(displayState[selectY][selectX], x, y, this.sublocation.x, this.sublocation.y);
-        } else {
-          this.displayTile(this.tileDictionary[0], x, y, this.sublocation.x, this.sublocation.y);
-        }
+        this.displayDicEntry(displayState[selectY][selectX], x, y, this.sublocation.x, this.sublocation.y);
       } else {
         this.displayDicEntry(displayState[selectY][selectX], x, y, 0, 0);
       }
@@ -446,7 +439,7 @@ RpgObject.prototype.changeState = function(state){
   for(var i = 0; i < this.animations[this.state].length; i++){
     var x = this.animations[this.state][i].x;
     var y = this.animations[this.state][i].y;
-    var tile = this.tileDictionary[this.states[this.state].tileMap[y][x]];
+    var tile = this.tileDictionary[this.tileMap[this.state][y][x]];
     tile.animation.active = true;
   }
 };
@@ -469,22 +462,22 @@ RpgObject.prototype.loadTileDictionary = function(callback){
     tileContext = tileCanvas.getContext('2d');
     tileContext.fillStyle = this.playerData.view.overlayTileColor;
     tileContext.fillRect(0,0,tileCanvas.width,tileCanvas.height);
-    if(!this.tileDictionary['overlay']){
-      this.tileDictionary['overlay'] = {};
-      this.tileDictionary['overlay'].image = {};
-    }
-    this.tileDictionary['overlay'].image.url = tileCanvas.toDataURL('image/png');
+    this.overlay.tile = {};
+    this.overlay.tile.image = {};
+    this.overlay.tile.image.url = tileCanvas.toDataURL('image/png');
+    this.overlay.tile.img = new Image;
+    this.overlay.tile.img.src = this.overlay.tile.image.url;
 
     tileContext.fillStyle = this.playerData.view.defaultTileColor;
     tileContext.fillRect(0,0,tileCanvas.width,tileCanvas.height);
-    if(!this.tileDictionary['0']){
-      this.tileDictionary['0'] = {};
-      this.tileDictionary['0'].image = {};
+    if(!this.tileDictionary[0]){
+      this.tileDictionary[0] = {};
+      this.tileDictionary[0].image = {};
     }
-    this.tileDictionary['0'].image.url = tileCanvas.toDataURL('image/png');
+    this.tileDictionary[0].image.url = tileCanvas.toDataURL('image/png');
   };
 
-  for(var key in this.tileDictionary){
+  for(var i = 0; i < this.tileDictionary.length; i++){
     if(prevEntry){
       if(prevEntry.animation){ 
         prevEntry.animation.frames.forEach(function(frame){
@@ -496,7 +489,7 @@ RpgObject.prototype.loadTileDictionary = function(callback){
         prevEntry.img.src = prevEntry.image.url;
       };
     };
-    prevEntry = this.tileDictionary[key];
+    prevEntry = this.tileDictionary[i];
   };
 
   //Set onload event to call callback on last image
@@ -537,7 +530,7 @@ RpgObject.prototype.progressAnimation = function(timer){
   for(var i = 0; i < this.animations[this.state].length; i++){
     var x = this.animations[this.state][i].x;
     var y = this.animations[this.state][i].y;
-      var tile = this.tileDictionary[this.states[this.state].tileMap[y][x]];
+      var tile = this.tileDictionary[this.tileMap[this.state][y][x]];
       //need to verify animation, if screen update is executed as the map is scrolling
       if(tile.animation){
         if(tile.animation.active && !(timer % tile.animation.interval)){
@@ -568,44 +561,44 @@ RpgObject.prototype.progressAnimation = function(timer){
 
 //Check if adjoining tile creates a collision event
 RpgObject.prototype.checkCollision = function(x, y){
-  if(!this.tileDictionary[this.states[this.state].tileMap[y][x]].walkable){
+  if(!this.tileDictionary[this.tileMap[this.state][y][x]].walkable){
     return true;
   };
   return false;
 };
 
 //As main view scrolls, update scrolled edges with new tiles, register new animations
-RpgObject.prototype.UpdateEdgeBuffer = function(params){
+RpgObject.prototype.updateEdgeBuffer = function(params){
   switch(params.direction){
-    case 'up':   
-      for(var x = 0; x < this.playerData.mapSelect.width; x++){
-        this.states[this.state].tileMap[this.playerData.mapSelect.orig.y][x] = params.tileArray.shift();
-        if(this.tileDictionary[this.states[this.state].tileMap[this.playerData.mapSelect.orig.y][x]].animation){
-          this.animations[this.state].push({'x' : x, 'y' : this.playerData.mapSelect.orig.y});
+    case 1:   
+      for(var x = 0; x < this.mapSelect.width; x++){
+        this.tileMap[this.state][this.mapSelect.orig.y][x] = params.tileArray.shift();
+        if(this.tileDictionary[this.tileMap[this.state][this.mapSelect.orig.y][x]].animation){
+          this.animations[this.state].push({'x' : x, 'y' : this.mapSelect.orig.y});
         }
       }  
     break;
-    case 'right':  
-      for(var y = 0; y < this.playerData.mapSelect.height; y++){
-        this.states[this.state].tileMap[y][this.playerData.mapSelect.bound.x - 1] = params.tileArray.shift();
-        if(this.tileDictionary[this.states[this.state].tileMap[y][this.playerData.mapSelect.bound.x - 1]].animation){
-          this.animations[this.state].push({'x' : this.playerData.mapSelect.bound.x - 1, 'y' : y});
+    case 2:  
+      for(var y = 0; y < this.mapSelect.height; y++){
+        this.tileMap[this.state][y][this.mapSelect.bound.x - 1] = params.tileArray.shift();
+        if(this.tileDictionary[this.tileMap[this.state][y][this.mapSelect.bound.x - 1]].animation){
+          this.animations[this.state].push({'x' : this.mapSelect.bound.x - 1, 'y' : y});
         }
       }       
     break;
-    case 'down':      
-      for(var x = 0; x < this.playerData.mapSelect.width; x++){
-        this.states[this.state].tileMap[this.playerData.mapSelect.bound.y - 1][x] = params.tileArray.shift();
-        if(this.tileDictionary[this.states[this.state].tileMap[this.playerData.mapSelect.bound.y - 1][x]].animation){
-          this.animations[this.state].push({'x' : x, 'y' : this.playerData.mapSelect.bound.y - 1});
+    case 3:      
+      for(var x = 0; x < this.mapSelect.width; x++){
+        this.tileMap[this.state][this.mapSelect.bound.y - 1][x] = params.tileArray.shift();
+        if(this.tileDictionary[this.tileMap[this.state][this.mapSelect.bound.y - 1][x]].animation){
+          this.animations[this.state].push({'x' : x, 'y' : this.mapSelect.bound.y - 1});
         }
       }      
     break;
-    case 'left':  
-      for(var y = 0; y < this.playerData.mapSelect.height; y++){
-        this.states[this.state].tileMap[y][this.playerData.mapSelect.orig.x] = params.tileArray.shift();
-        if(this.tileDictionary[this.states[this.state].tileMap[y][this.playerData.mapSelect.orig.x]].animation){
-          this.animations[this.state].push({'x' : this.playerData.mapSelect.orig.x, 'y' : y});
+    case 4:  
+      for(var y = 0; y < this.mapSelect.height; y++){
+        this.tileMap[this.state][y][this.mapSelect.orig.x] = params.tileArray.shift();
+        if(this.tileDictionary[this.tileMap[this.state][y][this.mapSelect.orig.x]].animation){
+          this.animations[this.state].push({'x' : this.mapSelect.orig.x, 'y' : y});
         }
       }          
     break;
@@ -616,64 +609,64 @@ RpgObject.prototype.UpdateEdgeBuffer = function(params){
 //regisetered animation locations are updated, out of bounds ones are removed
 RpgObject.prototype.viewFeedTop = function(){
   var newRow = [];
-  for(var x = 0; x < this.playerData.mapSelect.width; x++){
+  for(var x = 0; x < this.mapSelect.width; x++){
     if(x >= this.canvasSelect.orig.x && x < this.canvasSelect.bound.x){
-      this.displayDicEntry(this.states[this.state].tileMap[this.canvasSelect.orig.y - 1][x], x - this.canvasSelect.orig.x, 0, this.tileWidth - this.sublocation.x, 0);
+      this.displayDicEntry(this.tileMap[this.state][this.canvasSelect.orig.y - 1][x], x - this.canvasSelect.orig.x, 0, this.tileWidth - this.sublocation.x, 0);
     }
     newRow.push(0);
   }
-  this.states[this.state].tileMap.unshift(newRow);
-  this.states[this.state].tileMap.pop();
+  this.tileMap[this.state].unshift(newRow);
+  this.tileMap[this.state].pop();
   for(var i = 0; i < this.animations[this.state].length; i++){
     this.animations[this.state][i].y++;
-    if(this.animations[this.state][i].y === this.playerData.mapSelect.bound.y){
+    if(this.animations[this.state][i].y === this.mapSelect.bound.y){
       this.animations[this.state].splice(i,1);
     }
   } 
 };
 RpgObject.prototype.viewFeedRight = function(){
-  for(var y = 0; y < this.playerData.mapSelect.height; y++){
+  for(var y = 0; y < this.mapSelect.height; y++){
     if(y >= this.canvasSelect.orig.y && y < this.canvasSelect.bound.y){
-      this.displayDicEntry(this.states[this.state].tileMap[y][this.canvasSelect.bound.x], this.canvasSelect.width - 1, y - this.canvasSelect.orig.y, 0, this.tileHeight - this.sublocation.y);
+      this.displayDicEntry(this.tileMap[this.state][y][this.canvasSelect.bound.x - 1], this.canvasSelect.width - 1, y - this.canvasSelect.orig.y, 0, this.tileHeight - this.sublocation.y);
     }
-    this.states[this.state].tileMap[y].shift();
-    this.states[this.state].tileMap[y].push(0);
+    this.tileMap[this.state][y].shift();
+    this.tileMap[this.state][y].push(0);
   }
   for(var i = 0; i < this.animations[this.state].length; i++){
     this.animations[this.state][i].x--;
-    if(this.animations[this.state][i].x < this.playerData.mapSelect.orig.x){
+    if(this.animations[this.state][i].x < this.mapSelect.orig.x){
       this.animations[this.state].splice(i,1);
     }
   }
 };
 RpgObject.prototype.viewFeedBottom = function(){
   var newRow = [];
-  for(var x = 0; x < this.playerData.mapSelect.width; x++){
+  for(var x = 0; x < this.mapSelect.width; x++){
     if(x >= this.canvasSelect.orig.x && x < this.canvasSelect.bound.x){
-      this.displayDicEntry(this.states[this.state].tileMap[this.canvasSelect.bound.y][x], x - this.canvasSelect.orig.x, this.canvasSelect.height - 1, this.tileWidth - this.sublocation.x, 0);   
+      this.displayDicEntry(this.tileMap[this.state][this.canvasSelect.bound.y - 1][x], x - this.canvasSelect.orig.x, this.canvasSelect.height - 1, this.tileWidth - this.sublocation.x, 0);   
     }
     newRow.push(0);
   }
-  this.states[this.state].tileMap.shift();
-  this.states[this.state].tileMap.push(newRow);
+  this.tileMap[this.state].shift();
+  this.tileMap[this.state].push(newRow);
   for(var i = 0; i < this.animations[this.state].length; i++){
     this.animations[this.state][i].y--;
-    if(this.animations[this.state][i].y < this.playerData.mapSelect.orig.y){
+    if(this.animations[this.state][i].y < this.mapSelect.orig.y){
       this.animations[this.state].splice(i,1);
     }
   }  
 };
 RpgObject.prototype.viewFeedLeft = function(){
-  for(var y = 0; y < this.playerData.mapSelect.height; y++){
+  for(var y = 0; y < this.mapSelect.height; y++){
     if(y >= this.canvasSelect.orig.y && y < this.canvasSelect.bound.y){
-      this.displayDicEntry(this.states[this.state].tileMap[y][this.canvasSelect.orig.x - 1], 0, y - this.canvasSelect.orig.y, 0, this.tileWidth - this.sublocation.y);
+      this.displayDicEntry(this.tileMap[this.state][y][this.canvasSelect.orig.x - 1], 0, y - this.canvasSelect.orig.y, 0, this.tileWidth - this.sublocation.y);
     }
-    this.states[this.state].tileMap[y].unshift(0);
-    this.states[this.state].tileMap[y].pop();
+    this.tileMap[this.state][y].unshift(0);
+    this.tileMap[this.state][y].pop();
   }
   for(var i = 0; i < this.animations[this.state].length; i++){
     this.animations[this.state][i].x++;
-    if(this.animations[this.state][i].x === this.playerData.mapSelect.bound.x){
+    if(this.animations[this.state][i].x === this.mapSelect.bound.x){
       this.animations[this.state].splice(i,1);
     }
   }
@@ -681,17 +674,17 @@ RpgObject.prototype.viewFeedLeft = function(){
 
 //draw border overlay on top of main window to hide scrolling tile updates
 RpgObject.prototype.viewDrawOverlayWindow = function(){
-  for(var x = 0; x <= this.overlay.canvas.width; x += this.tileWidth){
-    this.overlay.context.drawImage(this.tileDictionary['overlay'].img, x, 0);
+  for(var x = 0; x < this.overlay.canvas.width; x += this.tileWidth){
+    this.overlay.context.drawImage(this.overlay.tile.img, x, 0);
   }
-  for(var y = 0; y <= this.overlay.canvas.height; y+=this.tileHeight){
-    this.overlay.context.drawImage(this.tileDictionary['overlay'].img, (this.canvas.width - this.tileWidth), y);
+  for(var y = 0; y < this.overlay.canvas.height; y+=this.tileHeight){
+    this.overlay.context.drawImage(this.overlay.tile.img, (this.canvas.width - this.tileWidth), y);
   }
-  for(var x = 0; x <= this.overlay.canvas.width; x += this.tileWidth){
-    this.overlay.context.drawImage(this.tileDictionary['overlay'].img, x, (this.canvas.height - this.tileHeight));
+  for(var x = 0; x < this.overlay.canvas.width; x += this.tileWidth){
+    this.overlay.context.drawImage(this.overlay.tile.img, x, (this.canvas.height - this.tileHeight));
   }
-  for(var y = 0; y <= this.overlay.canvas.height; y += this.tileHeight){
-    this.overlay.context.drawImage(this.tileDictionary['overlay'].img, 0, y);
+  for(var y = 0; y < this.overlay.canvas.height; y += this.tileHeight){
+    this.overlay.context.drawImage(this.overlay.tile.img, 0, y);
   }
 };
 
@@ -703,16 +696,16 @@ params = {
 */
 RpgObject.prototype.objectScroll = function(params){
   switch(params.direction){
-    case 'up':
+    case 1:
       this.canvasPosition.y += params.scrollPx * 2;
     break;
-    case 'right':
+    case 2:
       this.canvasPosition.x -= params.scrollPx * 2;
     break;
-    case 'down':
+    case 3:
       this.canvasPosition.y -= params.scrollPx * 2;
     break;
-    case 'left':
+    case 4:
       this.canvasPosition.x += params.scrollPx * 2;
     break;
   };
@@ -735,7 +728,7 @@ RpgObject.prototype.viewScroll = function(params){
 
   function scrollObjects(){
     for(var key in self.rpgChildNodes){
-      if(self.playerData.id != self.rpgChildNodes[key].id){
+      if(self.playerData.rpgObjectId != self.rpgChildNodes[key]._id){
         self.rpgChildNodes[key].objectScroll({
           "direction" : params.direction,
           "scrollPx" : params.scrollPx
@@ -745,7 +738,7 @@ RpgObject.prototype.viewScroll = function(params){
   };
 
   switch(params.direction){
-    case 'up':
+    case 1:
       if(params.sublocation.y - params.scrollPx < 0){
         if(!this.checkCollision(params.location.x, params.location.y - 1)){
           params.sublocation.y = this.tileHeight - params.scrollPx;
@@ -760,7 +753,7 @@ RpgObject.prototype.viewScroll = function(params){
         scrollObjects();
       };
     break;
-    case 'right':
+    case 2:
       if(params.sublocation.x + params.scrollPx > this.tileWidth - 1){
         if(!this.checkCollision(params.location.x + 1, params.location.y)){
           params.sublocation.x = 0;
@@ -776,7 +769,7 @@ RpgObject.prototype.viewScroll = function(params){
         scrollObjects();
       };
     break;
-    case 'down':
+    case 3:
       if(params.sublocation.y + params.scrollPx > this.tileHeight - 1){
         if(!this.checkCollision(params.location.x, params.location.y + 1)){
           params.sublocation.y = 0;
@@ -791,7 +784,7 @@ RpgObject.prototype.viewScroll = function(params){
         scrollObjects();
       };
     break;
-    case 'left':
+    case 4:
       if(params.sublocation.x - params.scrollPx < 0){
         if(!this.checkCollision(params.location.x - 1, params.location.y)){
           params.sublocation.x = this.tileWidth - params.scrollPx;

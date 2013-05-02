@@ -7,7 +7,7 @@ The web site and display engine is served through express, and map data is strea
 
 ##TODO:
 
-Everything.  Need to move map and player data to MongoDB, and login authentication logic.  Also, need to tweak front end to allow multiple players, add chat, etc, etc.  This is just a start.
+Everything.  Need to tweak front end to allow multiple players with real authentication, add chat, etc, etc.  This is just a start.
 
 ##Authors
 
